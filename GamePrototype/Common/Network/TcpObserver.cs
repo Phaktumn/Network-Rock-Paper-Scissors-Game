@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -8,25 +8,125 @@ using System.Threading.Tasks;
 
 namespace Common.Network
 {
-    class TcpObserver
+    public class TcpObserver
     {
         public delegate void OnMessageReceivedEventHandler(Message packet);
         public delegate void OnClientConnectedEventHandler(IPEndPoint address);
         public event OnMessageReceivedEventHandler MessageReceivedEvent;
         public event OnClientConnectedEventHandler ClientConnectedEvent;
 
+        public TcpListener Listener { get { return listener; } }
+
         private TcpListener listener { get; set; }
         private Task awaitConnections;
 
+        public bool ShutDown;
 
-        public TcpObserver()
+        public void Connect(IPAddress address, int port)
         {
+            listener = new TcpListener(address, port);
+            listener.Start();
+
+            StartAwaitClients();
+        }
+
+        public void Disconnect()
+        {
+            ShutDown = true;
+
+            awaitConnections.Wait();
+            awaitConnections.Dispose();
+
+            foreach (KeyValuePair<Player, Task> player in GameStore.Instance.Game.PlayerList)
+            {
+                player.Value.Wait();
+                player.Value.Dispose();
+                player.Key.Client.Close();
+            }
+
+            listener.Stop();
+        }
+
+        private async void AwaitClients()
+        {
+            while (!ShutDown)
+            {
+                var client = await listener.AcceptTcpClientAsync();
+                var task = Task.Factory.StartNew(() => ProcessClientStream(client));
+                var player = new Player
+                {
+                    Client = client,
+                    Id = GameStore.Instance.Game.PlayerList.Count,
+                    PlayerAddress = (IPEndPoint) client.Client.RemoteEndPoint,
+                    PlayerName = null,
+                    Port = 7777
+                };
+                Colorful.Console.WriteLine("Client Accepted");
+                GameStore.Instance.Game.PlayerList.Add(player, task);
+                ClientConnectedEvent?.Invoke((IPEndPoint)client.Client.RemoteEndPoint);
+            }
+        }
+
+        public void StartAwaitClients()
+        {
+            awaitConnections = Task.Factory.StartNew(AwaitClients);
+        }
+
+        public void StopAwaitClients()
+        {
+            awaitConnections.Wait();
+            awaitConnections.Dispose();
+        }
+
+        private async void ProcessClientStream(TcpClient client)
+        {
+            var stream = client.GetStream();
+
+            while (!ShutDown)
+            {
+                int count;
+                byte[] data = new byte[client.ReceiveBufferSize];
+                try
+                {
+                    count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine(e.Message);
+                    throw;
+                }
+
+                string message = Encoding.ASCII.GetString(data, 0, count);
+                IPEndPoint address = (IPEndPoint) client.Client.RemoteEndPoint;
+                MessageReceivedEvent?.Invoke(new Message(message, address));
+            }
+        }
+
+        public void Send(Player player, string message)
+        {
+            var buffer = new byte[message.Length * sizeof(char)];
+            buffer = Encoding.ASCII.GetBytes(message);
+
+            var client = player.Client;
+            client.GetStream().Write(buffer, 0, buffer.Length);
+
 
         }
 
-        public void Connect()
+        public void Send(NetworkStream stream, string message)
         {
-            //listener.
+            byte[] buffer = new byte[message.Length * sizeof(char)];
+            buffer = Encoding.ASCII.GetBytes(message);
+
+            stream.Write(buffer, 0, buffer.Length);
+        }
+
+        public void SendAll(string message)
+        {
+            foreach (var player in GameStore.Instance.Game.PlayerList)
+            {
+                Send(player.Key, message);
+            }
         }
 
         public void Read()

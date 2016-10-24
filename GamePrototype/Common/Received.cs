@@ -9,6 +9,5 @@ namespace Common
 {
     public struct Received
     {
-        public StringMessage Message;
     }
 }

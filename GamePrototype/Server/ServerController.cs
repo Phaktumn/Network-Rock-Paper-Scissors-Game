@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -7,111 +9,132 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using Common;
+using Common.Network;
 
 namespace Server
 {
     public class ServerController
     {
         private GameModes _serverState;
-        private TcpListener _tcpListener;
+        private TcpObserver tcpListener;
+
+        private bool shutdown;
 
         public ServerController()
         {
             _serverState = GameModes.ConnectionClosed;
-            GameStore.Instance.Game.PlayerList = new List<Player>();
+            GameStore.Instance.Game.PlayerList = new Dictionary<Player, Task>();
+            GameStore.Instance.Game.GameStateChangeEvent += GameOnGameStateChangeEvent;
+        }
+
+        private void Shutdown(Message packet, string[] msg)
+        {
+            tcpListener.Disconnect();
+            shutdown = true;
         }
 
         public void StartServer()
         {
-            Task.Factory.StartNew(async () => { 
-            for (;;) { 
-                switch (_serverState)
+            //Task.Factory.StartNew(async () => 
+            //{
+                for (;;)
                 {
-                    case GameModes.ConnectionClosed:
-                        Console.WriteLine(_serverState.ToString());
-                        _tcpListener = new TcpListener(IPAddress.Any, 7777);
-                        _tcpListener.Start();
-                        _serverState = GameModes.ConnectionOpen;
-                    break;
-                    case GameModes.ConnectionOpen:
-                        Console.WriteLine(_serverState.ToString());
-                        if (_tcpListener.Pending())
-                        {
-                            TcpClient tcpClient = _tcpListener.AcceptTcpClient();
-                            await ReadMessage(tcpClient);
-                            if (tcpClient.Connected)
-                            {
-                                WriteMessage(tcpClient, "Bem vindo");
-                                //WriteMessage(tcpClient, "Introduza o seu nome");
-                                //string nome = ReadMessage(tcpClient);
-                                //Console.WriteLine(nome);
+                    switch (_serverState)
+                    {
+                        case GameModes.ConnectionClosed:
 
-                                //Player player = new Player()
+                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionClosed);
+
+                            tcpListener = new TcpObserver();
+                            tcpListener.Connect(IPAddress.Parse("127.0.0.1"), 5000);
+                            
+                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
+                            
+                            break;
+                        case GameModes.ConnectionOpen:
+
+                            //Write(_serverState.ToString(), Color.Aqua);
+                            
+                            if (GameStore.Instance.Game.PlayerList.Count >= 2) {
+                                tcpListener.StopAwaitClients();
+                                GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameInitializing);
+                            }
+
+                            //if (tcpListener.Listener.Pending())
+                            //{
+
+                                //TcpClient tcpClient = _tcpListener.AcceptTcpClient();
+                                //await ReadMessage(tcpClient);
+                                //if (tcpClient.Connected)
                                 //{
-                                //    Client =  tcpClient,
-                                //    Id = GameStore.Instance.Game.PlayerList.Count,
-                                //    PlayerAddress = tcpClient.Client.RemoteEndPoint,
-                                //    PlayerName = 
+                                    //WriteMessage(tcpClient, "Bem vindo");
+                                    //WriteMessage(tcpClient, "Introduza o seu nome");
+                                    //string nome = ReadMessage(tcpClient);
+                                    //Console.WriteLine(nome);
+
+                                    //Player player = new Player()
+                                    //{
+                                    //    Client =  tcpClient,
+                                    //    Id = GameStore.Instance.Game.PlayerList.Count,
+                                    //    PlayerAddress = tcpClient.Client.RemoteEndPoint,
+                                    //    PlayerName = 
+                                    //}
+
+                                    //GameStore.Instance.Game.PlayerList.Add(tcpClient);
                                 //}
-
-                                //GameStore.Instance.Game.PlayerList.Add(tcpClient);
-                            }
-                            if (GameStore.Instance.Game.PlayerList.Count > 1)
-                            {
-                                _serverState = GameModes.GameInitializing;
-                            }
-                        }
-                    break;
-                    case GameModes.GameInitializing:
-                        Console.WriteLine(_serverState.ToString());
-                        // TODO: Initialize Game Logic
-                        _serverState = GameModes.GameStarted;
+                                //if (GameStore.Instance.Game.PlayerList.Count > 1)
+                                //{
+                                    //_serverState = GameModes.GameInitializing;
+                                //}
+                            //}
+                            break;
+                        case GameModes.GameInitializing:
+                            //Console.WriteLine(_serverState.ToString()); 
+                            // TODO: Initialize Game Logic
+                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameStarted);
                         break;
-                    case GameModes.GameStarted:
-                        Console.WriteLine(_serverState.ToString());
-                        //for (int x = 0; x < _tcpClientList.Count; x++)
-                        //{
-                        //    WriteMessage(_tcpClientList[x], "Joga...");
-                        //    string message = ReadMessage(_tcpClientList[x]);
-                        //    foreach (TcpClient tcpClient in _tcpClientList)
-                        //    {
-                        //        WriteMessage(tcpClient, "Foi jogado..."+ message);
-                        //    }
-                        //    if (message == "Ganhei")
-                        //    {
-                        //        _serverState = GameModes.GameEnded;
-                        //        break;
-                        //    }
-                        //    if (x >= _tcpClientList.Count)
-                        //    {
-                        //        x = 0;
-                        //    }
-                        //}
-                        break;
-                    case GameModes.GameEnded:
-                        Console.WriteLine(_serverState.ToString());
-                        Console.WriteLine("Game ended...");
-                        break;
+                        case GameModes.GameStarted:
+                            //Console.WriteLine(_serverState.ToString());
+                            //for (int x = 0; x < _tcpClientList.Count; x++)
+                            //{
+                            //    WriteMessage(_tcpClientList[x], "Joga...");
+                            //    string message = ReadMessage(_tcpClientList[x]);
+                            //    foreach (TcpClient tcpClient in _tcpClientList)
+                            //    {
+                            //        WriteMessage(tcpClient, "Foi jogado..."+ message);
+                            //    }
+                            //    if (message == "Ganhei")
+                            //    {
+                            //        _serverState = GameModes.GameEnded;
+                            //        break;
+                            //    }
+                            //    if (x >= _tcpClientList.Count)
+                            //    {
+                            //        x = 0;
+                            //    }
+                            //}
+                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameEnded);
+                            break;
+                        case GameModes.GameEnded:
+                            Console.WriteLine(_serverState.ToString());
+                            Console.WriteLine("Game ended...");
+                            break;
+                    }
                 }
-            }
-            });
+            //});
         }
 
-        private void WriteMessage(TcpClient tcpClient, string message)
+        private void GameOnGameStateChangeEvent(GameModes mode)
         {
-            BinaryWriter binaryWriter = new BinaryWriter(tcpClient.GetStream());
-            binaryWriter.Write(message);
+            _serverState = mode;
+           Write(mode.ToString(), Color.Aqua);
         }
 
-        byte[] buffer = new byte[1024];
-        MemoryStream ms = new MemoryStream();
-
-        //public async Task<Received> ReadMessage(TcpClient tcpClient)
-        //{
-        //    var bytesRead = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
-        //    if (bytesRead > 0) {
-                
-        //    }
-        //}
+        private static void Write(string text, Color col)
+        {
+            Colorful.Console.WriteFormatted(DateTime.Now.ToString(CultureInfo.CurrentCulture)
+                + " -> ", Color.DimGray);
+            Console.Write(text + "\n", col);
+        }
     }
 }
