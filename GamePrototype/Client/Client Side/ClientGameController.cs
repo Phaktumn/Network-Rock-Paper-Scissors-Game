@@ -22,9 +22,13 @@ namespace Client.Client_Side
 
         private Menu abMenu;
         private Menu endGameMenu;
+        private Menu mainMenu;
 
         private bool inPlay = true;
         private bool waitingResults = false;
+        private bool showMainMenu = true;
+
+        private string ChosenName = null;
 
         public ClientGameController()
         {
@@ -65,11 +69,61 @@ namespace Client.Client_Side
             var option6 = new MenuOption { OptionString = "Exit Game" };
             option6.ExecuteEvent += EndGameEvent;
             endGameMenu.AddOption(option6, CodeMessages.PLAYER_DISCONNECTED);
+
+            mainMenu = new Menu(3)
+            {
+                ExtraText = "Name: ",
+                ExtraTextColor = Color.BlueViolet
+            };
+            var option7 = new MenuOption() { OptionString = "Insert a Name" };
+            var option8 = new MenuOption() { OptionString = "Exit Name" };
+            var option9 = new MenuOption() { OptionString = "Start Game (Requires a Name)" };
+            option7.ExecuteEvent += CreateNameMenu;
+            option8.ExecuteEvent += EndGameEvent;
+            option9.ExecuteEvent += OnStartGame;
+
+            mainMenu.AddOption(option7, "name");
+            mainMenu.AddOption(option9, "start");
+            mainMenu.AddOption(option8, "quit");
+        }
+
+        private void OnStartGame(string read)
+        {
+            //
+            if (ChosenName == null) { 
+                Console.Clear();
+                Colorful.Console.WriteLine("Please Choose a Name", Color.Aqua);
+                return;
+            }
+            //Connect to The Server
+            //
+            //send your name to server
+            showMainMenu = false;
+            while (true)
+            {
+                if (controller.Connect(NetworkOptions.Ip, NetworkOptions.Port))
+                {
+                    Colorful.Console.WriteLine("Connected");
+                    SendMessage(ChosenName);
+                    break;
+                }
+                Console.WriteLine("Cant Connect");
+            }
+        }
+
+        private void CreateNameMenu(string read)
+        {
+            //ChosenName = read;
+            Colorful.Console.Write("Name-> ", Color.Aqua);
+            ChosenName = Console.ReadLine();
+            mainMenu.ExtraText += ChosenName;
+            Console.Clear();
         }
 
         private void EndGameEvent(string read)
         {
             SendMessage(read);
+            Console.Clear();
         }
 
         private void NewGameEvent(string read)
@@ -118,6 +172,7 @@ namespace Client.Client_Side
                 {
                     Console.WriteLine("Game Changed To" + GameModes.GameStarted);
                     clientGameState = GameModes.GameStarted;
+                    Console.Clear();
                     inPlay = true;
                     for (int j = 0; j < data.Length; j++)
                     {
@@ -139,17 +194,6 @@ namespace Client.Client_Side
 
         public void Start()
         {
-            while (true)
-            {
-                if (controller.Connect(NetworkOptions.Ip, NetworkOptions.Port))
-                {
-                    Colorful.Console.WriteLine("Connected");
-                    break;
-                }
-                Console.WriteLine("Cant Connect");
-            }
-
-
             while (!controller.shutDown)
             {
                 UpdateClient();
@@ -161,6 +205,21 @@ namespace Client.Client_Side
             switch (clientGameState)
             {
                 case GameModes.ConnectionOpen:
+                    if (showMainMenu)
+                    {
+                        string option;
+                        mainMenu.Show();
+                        while (true)
+                        {
+                            option = mainMenu.ReadLine();
+                            if (option != null)
+                            {
+                                break;
+                            }
+                            Colorful.Console.WriteLine("Option not available");
+                        }
+                        mainMenu.StartEvent(option);
+                    }
                     break;
                 case GameModes.ConnectionClosed:
                     break;
