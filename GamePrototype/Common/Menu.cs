@@ -53,8 +53,6 @@ namespace Core.Core
             menuOptions.Add(option);
             optionsFormatter.Add(new Formatter(option.OptionString, OptionsColor));
             optionsList.Add(optionsFormatter.Count + "»{" + (optionsFormatter.Count - 1) + "}\n");
-            indexStrings.Add(optionsFormatter.Count.ToString());
-            OptionsCount++;
             //Criar a string Completa para o formatter usar
             optionsString += optionsList[optionsList.Count - 1];
         }

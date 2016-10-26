@@ -4,16 +4,17 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Client.Client_Side;
+using Common.Network;
 
 namespace Client
 {
-    class Program
+    public static class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
-            ClientController clientController = new ClientController();
-            clientController.Connect("127.0.0.1", 5000);
-            clientController.StartClient();
+            ClientGameController clientGameController = new ClientGameController();
+            clientGameController.Start();
         }
     }
 }

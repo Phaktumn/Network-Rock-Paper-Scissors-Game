@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace Common
@@ -9,12 +10,40 @@ namespace Common
         public event OnGameStateChangeEventHandler GameStateChangeEvent;
 
         public Dictionary<Player, Task> PlayerList { get; set; }
+        public List<Player> AttackOrder { get; set; } = new List<Player>(); 
         public int TargetNumber { get; set; }
         public List<Move> MoveList { get; set; }
 
         public void OnGameStateChangeEvent(GameModes mode)
         {
             GameStateChangeEvent?.Invoke(mode);
+        }
+
+        public Player GetPlayerFromIpEndPoint(IPEndPoint endPoint)
+        {
+            foreach (var player in PlayerList)
+            {
+                if (Equals(player.Key.Client.Client.RemoteEndPoint, endPoint))
+                {
+                    return player.Key;    
+                }
+            }
+            return null;
+        }
+
+        public Player GetPlayerByName(string name)
+        {
+            Dictionary<Player, Task>.Enumerator enumerator = PlayerList.GetEnumerator();
+            while (true)
+            {
+                if (enumerator.Current.Key.PlayerName == name)
+                {
+                    Player p = enumerator.Current.Key;
+                    enumerator.Dispose();
+                    return p;
+                }
+                enumerator.MoveNext();
+            }
         }
     }
 }

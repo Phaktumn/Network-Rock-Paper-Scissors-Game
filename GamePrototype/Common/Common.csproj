@@ -52,11 +52,13 @@
     <Compile Include="MenuOption.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="Move.cs" />
+    <Compile Include="Network\ClientController.cs" />
+    <Compile Include="Network\CodeMessages.cs" />
+    <Compile Include="Network\NetworkOptions.cs" />
     <Compile Include="Network\TcpObserver.cs" />
     <Compile Include="Player.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="GameState.cs" />
-    <Compile Include="Received.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

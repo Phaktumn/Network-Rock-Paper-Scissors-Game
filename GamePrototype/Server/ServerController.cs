@@ -7,9 +7,11 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Common;
 using Common.Network;
+using Server.Controlls;
 
 namespace Server
 {
@@ -19,6 +21,8 @@ namespace Server
         private TcpObserver tcpListener;
 
         private bool shutdown;
+
+        private int readyCounter = 0;
 
         public ServerController()
         {
@@ -35,105 +39,149 @@ namespace Server
 
         public void StartServer()
         {
-            //Task.Factory.StartNew(async () => 
-            //{
-                for (;;)
+            Colorful.Console.WriteAscii("RPSLS GAME", Color.CadetBlue);
+            for (;;)
+            {
+                switch (_serverState)
                 {
-                    switch (_serverState)
+                    case GameModes.ConnectionClosed:
+
+                        GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionClosed);
+
+                        tcpListener = new TcpObserver();
+                        tcpListener.Connect(IPAddress.Parse("127.0.0.1"), 5000);
+                        tcpListener.MessageReceivedEvent += TcpListener_MessageReceivedEvent;
+
+                        GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
+
+                        break;
+                    case GameModes.ConnectionOpen:
+
+                        if (GameStore.Instance.Game.PlayerList.Count >= 2)
+                        {
+                            Thread.Sleep(1000);
+                            Write("Session in Full", Color.LawnGreen);
+                            Write("Starting Session", Color.LawnGreen);
+                            tcpListener.StopAwaitClients();
+                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameInitializing);
+                            tcpListener.SendAll(CodeMessages.GAME_INITIALIZING.Message);
+                        }
+                        break;
+                    case GameModes.GameInitializing:
+                        GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameStarted);
+                        tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
+                        break;
+                    case GameModes.GameStarted:
+                        break;
+                    case GameModes.GameEnded:
+                        break;
+                    case GameModes.RoundEnded:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+        }
+
+        /// <summary>
+        /// When A Message is Received from a client
+        /// </summary>
+        /// <param name="packet"></param>
+        private void TcpListener_MessageReceivedEvent(Message packet)
+        {
+            string[] rawMessage = Message.Deserialize(packet);
+            string receivedMessage = rawMessage[0];
+            Player player = GameStore.Instance.Game.GetPlayerFromIpEndPoint(packet.Sender);
+            Write("Received from " + player.PlayerAddress + "-> " + packet.Data, Color.OrangeRed);
+            switch (_serverState)
+            {
+                case GameModes.ConnectionOpen:
+                    break;
+                case GameModes.ConnectionClosed:
+                    break;
+                case GameModes.GameInitializing:
+                    break;
+                case GameModes.GameStarted:
+                    //Message Received as a ability
+                    int used = int.Parse(receivedMessage);
+
+                    Write("||" + player.PlayerName + "|| Used: " + (Abilities) used, Color.Red);
+                    GameStore.Instance.Game.AttackOrder.Add(player);
+                    GameController.Instance.addAttack((Abilities) used);
+
+                    tcpListener.Send(player, 
+                        $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You are now waiting for other Players to play {CodeMessages.PLAYER_WAITING}");
+
+                    if (GameStore.Instance.Game.AttackOrder.Count == GameStore.Instance.Game.PlayerList.Count)
                     {
-                        case GameModes.ConnectionClosed:
+                        Write("Round Ended", Color.Red);
+                        _serverState = GameModes.RoundEnded;
+                        tcpListener.SendAll(CodeMessages.GAME_ROUND_ENDED.Message);
+                    }
+                    break;
+                case GameModes.RoundEnded:
+                    //A player replied with success
+                    readyCounter++;
+                    if (readyCounter == 2)
+                    {
+                        //All Players Are Ready!
+                        //Show Who Won and Who Lost
+                        var state = GameController.Instance.Battle();
 
-                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionClosed);
-
-                            tcpListener = new TcpObserver();
-                            tcpListener.Connect(IPAddress.Parse("127.0.0.1"), 5000);
-                            
-                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
-                            
-                            break;
-                        case GameModes.ConnectionOpen:
-
-                            //Write(_serverState.ToString(), Color.Aqua);
-                            
-                            if (GameStore.Instance.Game.PlayerList.Count >= 2) {
-                                tcpListener.StopAwaitClients();
-                                GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameInitializing);
+                        if (state != BattleState.None)
+                        {
+                            Write("Round Finished", Color.Red);
+                            var p1 = GameStore.Instance.Game.AttackOrder[0];
+                            var p2 = GameStore.Instance.Game.AttackOrder[1];
+                            if (state == BattleState.Lost)
+                            {
+                                Write(p1.PlayerName + " Lost", Color.Red);
+                                Write(p2.PlayerName + " Won", Color.Green);
+                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
+                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Won}");
+                            }
+                            if (state == BattleState.Won)
+                            {
+                                Write(p1.PlayerName + " Won", Color.Green);
+                                Write(p2.PlayerName + " Lost", Color.Red);
+                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
+                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Lost}");
+                            }                                                                       
+                            if (state == BattleState.Draw)                                          
+                            {                                                                       
+                                Write(p1.PlayerName + " Draw", Color.Red);                          
+                                Write(p2.PlayerName + " Draw", Color.Green);                        
+                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
+                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
                             }
 
-                            //if (tcpListener.Listener.Pending())
-                            //{
-
-                                //TcpClient tcpClient = _tcpListener.AcceptTcpClient();
-                                //await ReadMessage(tcpClient);
-                                //if (tcpClient.Connected)
-                                //{
-                                    //WriteMessage(tcpClient, "Bem vindo");
-                                    //WriteMessage(tcpClient, "Introduza o seu nome");
-                                    //string nome = ReadMessage(tcpClient);
-                                    //Console.WriteLine(nome);
-
-                                    //Player player = new Player()
-                                    //{
-                                    //    Client =  tcpClient,
-                                    //    Id = GameStore.Instance.Game.PlayerList.Count,
-                                    //    PlayerAddress = tcpClient.Client.RemoteEndPoint,
-                                    //    PlayerName = 
-                                    //}
-
-                                    //GameStore.Instance.Game.PlayerList.Add(tcpClient);
-                                //}
-                                //if (GameStore.Instance.Game.PlayerList.Count > 1)
-                                //{
-                                    //_serverState = GameModes.GameInitializing;
-                                //}
-                            //}
-                            break;
-                        case GameModes.GameInitializing:
-                            //Console.WriteLine(_serverState.ToString()); 
-                            // TODO: Initialize Game Logic
+                            //Get Stuff Ready 
+                            Write("Players can now Play", Color.GreenYellow);
+                            //NOT USING THIS AT THE MOMENT
+                            //tcpListener.SendAll($"{CodeMessages.INTERNAL_SERVER_MESSAGE.Message}canplay");
+                            GameStore.Instance.Game.AttackOrder.Clear();
+                            readyCounter = 0;
                             GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameStarted);
-                        break;
-                        case GameModes.GameStarted:
-                            //Console.WriteLine(_serverState.ToString());
-                            //for (int x = 0; x < _tcpClientList.Count; x++)
-                            //{
-                            //    WriteMessage(_tcpClientList[x], "Joga...");
-                            //    string message = ReadMessage(_tcpClientList[x]);
-                            //    foreach (TcpClient tcpClient in _tcpClientList)
-                            //    {
-                            //        WriteMessage(tcpClient, "Foi jogado..."+ message);
-                            //    }
-                            //    if (message == "Ganhei")
-                            //    {
-                            //        _serverState = GameModes.GameEnded;
-                            //        break;
-                            //    }
-                            //    if (x >= _tcpClientList.Count)
-                            //    {
-                            //        x = 0;
-                            //    }
-                            //}
-                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameEnded);
-                            break;
-                        case GameModes.GameEnded:
-                            Console.WriteLine(_serverState.ToString());
-                            Console.WriteLine("Game ended...");
-                            break;
+                            tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
+                        }
                     }
-                }
-            //});
+                    break;
+                case GameModes.GameEnded:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         private void GameOnGameStateChangeEvent(GameModes mode)
         {
             _serverState = mode;
-           Write(mode.ToString(), Color.Aqua);
+            Write(mode.ToString(), Color.Aqua);
         }
 
         private static void Write(string text, Color col)
         {
-            Colorful.Console.WriteFormatted(DateTime.Now.ToString(CultureInfo.CurrentCulture)
-                + " -> ", Color.DimGray);
+            Colorful.Console.WriteFormatted(DateTime.Now.ToString(CultureInfo.CurrentCulture) + " -> ", Color.DimGray);
             Console.Write(text + "\n", col);
         }
     }

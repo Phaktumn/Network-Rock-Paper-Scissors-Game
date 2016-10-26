@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Data.Odbc;
+using System.Drawing;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Common;
 
-namespace Client
+namespace Common.Network
 {
     public class ClientController
     {
@@ -22,32 +21,28 @@ namespace Client
         private TcpClient client;
         private NetworkStream stream;
         private Task receiveTask;
-        private bool shutDown;
+        public bool shutDown = false;
 
-        private bool KeepTrying = true;
+        private bool state = true;
 
         GameModes clientGameState = GameModes.ConnectionClosed;
 
         public ClientController()
         { }
 
-        public void Connect(string address, int port)
+        public bool Connect(string address, int port)
         {
-            while (KeepTrying)
+            try
             {
-                try
-                {
-                    client = new TcpClient(address, port);
-                    KeepTrying = false;
-                }
-                catch (SocketException)
-                {
-                    Colorful.Console.WriteLine("No Server Found");
-                    KeepTrying = true;
-                }
+                client = new TcpClient(address, port);
+                BeginReceive();
+                stream = client.GetStream();
+                return state = true;
             }
-            stream = client.GetStream();
-            Colorful.Console.WriteLine("Connected");
+            catch (SocketException)
+            {
+                return state = false;
+            }
         }
 
         public void Disconnect()
@@ -62,42 +57,6 @@ namespace Client
             }
         }
 
-        public void StartClient()
-        {
-            Task.Run(() =>
-            {
-                while (true)
-                {
-                    
-                }
-            }); 
-        }
-
-        public void UpdateClient()
-        {
-            while (true)
-            {
-                switch (clientGameState)
-                {
-                    case GameModes.ConnectionOpen:
-                        break;
-                    case GameModes.ConnectionClosed:
-                        break;
-                    case GameModes.GameInitializing:
-                        break;
-                    case GameModes.GameStarted:
-                        break;
-                    case GameModes.RoundEnded:
-                        break;
-                    case GameModes.GameEnded:
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-            }
-        }
-
-
         public void Send(string message)
         {
             byte[] bytes = Encoding.ASCII.GetBytes(message);
@@ -108,7 +67,7 @@ namespace Client
         {
             receiveTask = Task.Factory.StartNew(async () =>
             {
-                while (!shutDown)
+                while (!shutDown &&  Client.Connected)
                 {
                     byte[] data = new byte[client.ReceiveBufferSize];
                     int count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);

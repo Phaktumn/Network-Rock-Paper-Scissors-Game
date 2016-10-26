@@ -27,7 +27,7 @@ namespace Common.Network
             listener = new TcpListener(address, port);
             listener.Start();
 
-            StartAwaitClients();
+            awaitConnections = Task.Factory.StartNew(AwaitClients);
         }
 
         public void Disconnect()
@@ -61,15 +61,9 @@ namespace Common.Network
                     PlayerName = null,
                     Port = 7777
                 };
-                Colorful.Console.WriteLine("Client Accepted");
                 GameStore.Instance.Game.PlayerList.Add(player, task);
-                ClientConnectedEvent?.Invoke((IPEndPoint)client.Client.RemoteEndPoint);
+                ClientConnectedEvent?.Invoke((IPEndPoint) client.Client.RemoteEndPoint);
             }
-        }
-
-        public void StartAwaitClients()
-        {
-            awaitConnections = Task.Factory.StartNew(AwaitClients);
         }
 
         public void StopAwaitClients()
@@ -80,9 +74,9 @@ namespace Common.Network
 
         private async void ProcessClientStream(TcpClient client)
         {
-            var stream = client.GetStream();
+            NetworkStream stream = client.GetStream();
 
-            while (!ShutDown)
+            while (client.Connected)
             {
                 int count;
                 byte[] data = new byte[client.ReceiveBufferSize];
@@ -90,10 +84,23 @@ namespace Common.Network
                 {
                     count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);
                 }
-                catch (IOException e)
+                //A player Just Disconnected
+                catch (IOException)
                 {
-                    Console.WriteLine(e.Message);
-                    throw;
+                    Player p = null;
+                    foreach (var pl in GameStore.Instance.Game.PlayerList)
+                    {
+                        if (pl.Key.Client == client)
+                        {
+                            p = pl.Key;
+                            Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
+                            pl.Value.Wait();
+                            pl.Value.Dispose();
+                            
+                        }
+                    }
+                    GameStore.Instance.Game.PlayerList.Remove(p);
+                    return;
                 }
 
                 string message = Encoding.ASCII.GetString(data, 0, count);
@@ -109,8 +116,6 @@ namespace Common.Network
 
             var client = player.Client;
             client.GetStream().Write(buffer, 0, buffer.Length);
-
-
         }
 
         public void Send(NetworkStream stream, string message)

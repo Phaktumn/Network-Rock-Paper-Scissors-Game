@@ -5,6 +5,9 @@ namespace Common
 {
     public class Player
     {
+        public delegate void OnAttackEventHandler();
+        public event OnAttackEventHandler AttackEvent;
+
         public int Id { get; set; }
         public string PlayerName { get; set; }
         public IPEndPoint PlayerAddress { get; set; }
