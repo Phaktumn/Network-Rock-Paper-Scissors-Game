@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Common;
 using Common.Network;
+using Microsoft.Win32;
 using Server.Controlls;
 
 namespace Server
@@ -60,7 +61,6 @@ namespace Server
 
                         break;
                     case GameModes.ConnectionOpen:
-
                         if (GameStore.Instance.Game.PlayerList.Count >= 2)
                         {
                             Thread.Sleep(1000);
@@ -72,28 +72,37 @@ namespace Server
                         }
                         break;
                     case GameModes.GameInitializing:
+
                         GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameStarted);
                         tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
                         break;
                     case GameModes.GameStarted:
+                        if (GameStore.Instance.Game.PlayerList.Count < 2)
+                        {
+                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
+                            tcpListener.SendAll(CodeMessages.PUBLIC_SERVER_MESSAGE.Message + "A Player Just Disconnected going back to menu");
+                            tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
+                        }
                         break;
                     case GameModes.GameEnded:
+
                         break;
                     case GameModes.RoundEnded:
+                        if (GameStore.Instance.Game.PlayerList.Count < 2)
+                        {
+                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
+                            tcpListener.SendAll(CodeMessages.PUBLIC_SERVER_MESSAGE.Message + "A Player Just Disconnected going back to menu");
+                            tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
+                        }
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
             }
         }
-
-        private string messageFromPlayer = null;
-
         private void TcpListenerOnClientConnectedEvent(IPEndPoint address)
         {
-            if (messageFromPlayer != null)
-                GameStore.Instance.Game.GetPlayerFromIpEndPoint(address).PlayerName = messageFromPlayer;
-            Write(messageFromPlayer + " Connected. Address : " + address, Color.CornflowerBlue);
+            Write("Connected Address : " + address, Color.CornflowerBlue);
         }
 
         /// <summary>
@@ -104,9 +113,8 @@ namespace Server
         {
             string[] rawMessage = Message.Deserialize(packet);
             string receivedMessage = rawMessage[0];
-            messageFromPlayer = receivedMessage;
             Player player = GameStore.Instance.Game.GetPlayerFromIpEndPoint(packet.Sender);
-            Write("Received from " + player.PlayerAddress + "-> " + packet.Data, Color.OrangeRed);
+            Write("Received from " + player.PlayerAddress + " -> " + packet.Data, Color.OrangeRed);
             switch (_serverState)
             {
                 case GameModes.ConnectionOpen:

@@ -68,9 +68,9 @@ namespace Core.Core
             }
         }
 
-        public string ReadLine()
+        public string ReadLine(string read)
         {
-            var line = Colorful.Console.ReadLine();
+            var line = read;
             line = line.ToLower();
 
             if (line.ToLowerInvariant() == "quit")

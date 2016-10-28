@@ -97,7 +97,6 @@ namespace Common.Network
                             Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
                             pl.Value.Wait();
                             pl.Value.Dispose();
-                            
                         }
                     }
                     GameStore.Instance.Game.PlayerList.Remove(p);
