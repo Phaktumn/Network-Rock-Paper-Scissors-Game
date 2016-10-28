@@ -58,6 +58,7 @@ namespace Common.Network
                     Client = client,
                     Id = GameStore.Instance.Game.PlayerList.Count,
                     PlayerAddress = (IPEndPoint) client.Client.RemoteEndPoint,
+                    //Player Name Is Changed just after a client connected
                     PlayerName = null,
                     Port = 7777
                 };

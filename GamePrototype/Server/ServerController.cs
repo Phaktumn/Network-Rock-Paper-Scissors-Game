@@ -46,11 +46,15 @@ namespace Server
                 {
                     case GameModes.ConnectionClosed:
 
-                        GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionClosed);
+                        //GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionClosed);
 
                         tcpListener = new TcpObserver();
                         tcpListener.Connect(IPAddress.Parse(NetworkOptions.Ip), NetworkOptions.Port);
                         tcpListener.MessageReceivedEvent += TcpListener_MessageReceivedEvent;
+                        tcpListener.ClientConnectedEvent += TcpListenerOnClientConnectedEvent;
+                        Write("Server EndPoint : " + tcpListener.Listener.LocalEndpoint.ToString(), Color.Aqua);
+                        //tcpListener.Listener.Server.Blocking = false;
+                        Write("Server Blocking Connections : " + tcpListener.Listener.Server.Blocking, Color.Aqua);
 
                         GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
 
@@ -83,6 +87,15 @@ namespace Server
             }
         }
 
+        private string messageFromPlayer = null;
+
+        private void TcpListenerOnClientConnectedEvent(IPEndPoint address)
+        {
+            if (messageFromPlayer != null)
+                GameStore.Instance.Game.GetPlayerFromIpEndPoint(address).PlayerName = messageFromPlayer;
+            Write(messageFromPlayer + " Connected. Address : " + address, Color.CornflowerBlue);
+        }
+
         /// <summary>
         /// When A Message is Received from a client
         /// </summary>
@@ -91,6 +104,7 @@ namespace Server
         {
             string[] rawMessage = Message.Deserialize(packet);
             string receivedMessage = rawMessage[0];
+            messageFromPlayer = receivedMessage;
             Player player = GameStore.Instance.Game.GetPlayerFromIpEndPoint(packet.Sender);
             Write("Received from " + player.PlayerAddress + "-> " + packet.Data, Color.OrangeRed);
             switch (_serverState)
@@ -115,15 +129,6 @@ namespace Server
                     if (GameStore.Instance.Game.AttackOrder.Count == GameStore.Instance.Game.PlayerList.Count)
                     {
                         Write("Round Ended", Color.Red);
-                        _serverState = GameModes.RoundEnded;
-                        tcpListener.SendAll(CodeMessages.GAME_ROUND_ENDED.Message);
-                    }
-                    break;
-                case GameModes.RoundEnded:
-                    //A player replied with success
-                    readyCounter++;
-                    if (readyCounter == 2)
-                    {
                         //All Players Are Ready!
                         //Show Who Won and Who Lost
                         var state = GameController.Instance.Battle();
@@ -138,32 +143,42 @@ namespace Server
                                 Write(p1.PlayerName + " Lost", Color.Red);
                                 Write(p2.PlayerName + " Won", Color.Green);
                                 tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
-                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Won}");
+                                tcpListener.Send(p2,
+                                    $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Won}");
                             }
                             if (state == BattleState.Won)
                             {
                                 Write(p1.PlayerName + " Won", Color.Green);
                                 Write(p2.PlayerName + " Lost", Color.Red);
                                 tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
-                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Lost}");
-                            }                                                                       
-                            if (state == BattleState.Draw)                                          
-                            {                                                                       
-                                Write(p1.PlayerName + " Draw", Color.Red);                          
-                                Write(p2.PlayerName + " Draw", Color.Green);                        
+                                tcpListener.Send(p2,
+                                    $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Lost}");
+                            }
+                            if (state == BattleState.Draw)
+                            {
+                                Write(p1.PlayerName + " Draw", Color.Red);
+                                Write(p2.PlayerName + " Draw", Color.Green);
                                 tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
                                 tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
                             }
-
-                            //Get Stuff Ready 
-                            Write("Players can now Play", Color.GreenYellow);
-                            //NOT USING THIS AT THE MOMENT
-                            //tcpListener.SendAll($"{CodeMessages.INTERNAL_SERVER_MESSAGE.Message}canplay");
-                            GameStore.Instance.Game.AttackOrder.Clear();
-                            readyCounter = 0;
-                            GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameStarted);
-                            tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
                         }
+                        _serverState = GameModes.RoundEnded;
+                        tcpListener.SendAll(CodeMessages.GAME_ROUND_ENDED.Message);
+                    }
+                    break;
+                case GameModes.RoundEnded:
+                    //A player replied with success
+                    readyCounter++;
+                    if (readyCounter == 2)
+                    {
+                        //Get Stuff Ready 
+                        Write("Players can now Play", Color.GreenYellow);
+                        //NOT USING THIS AT THE MOMENT
+                        //tcpListener.SendAll($"{CodeMessages.INTERNAL_SERVER_MESSAGE.Message}canplay");
+                        GameStore.Instance.Game.AttackOrder.Clear();
+                        readyCounter = 0;
+                        GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.GameStarted);
+                        tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
                     }
                     break;
                 case GameModes.GameEnded:
