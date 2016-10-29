@@ -20,6 +20,8 @@ namespace Client.Client_Side
 
         private Color receivedMessageColor { get; } = Color.Aqua;
 
+        private Task readLineTask;
+
         private Menu abMenu;
         private Menu endGameMenu;
         private Menu mainMenu;
@@ -27,6 +29,8 @@ namespace Client.Client_Side
         private bool inPlay = true;
         private bool waitingResults = false;
         private bool showMainMenu = true;
+        private bool choosingName = true;
+
 
         private string ChosenName = null;
 
@@ -34,6 +38,7 @@ namespace Client.Client_Side
         {
             controller = new ClientController();
             controller.MessageReceivedEvent += ControllerOnMessageReceivedEvent;
+            controller.ClientDisconnectedEvent += ControllerOnClientDisconnectedEvent;
 
             abMenu = new Menu(5);
             var option = new MenuOption { OptionString = Abilities.Scissors.ToString() };
@@ -87,7 +92,14 @@ namespace Client.Client_Side
             mainMenu.AddOption(option8, "quit");
 
             mainMenu.Show();
-            StartReading();
+            readLineTask = Task.Factory.StartNew(StartReading);
+        }
+
+        private void ControllerOnClientDisconnectedEvent(TcpClient client)
+        {
+            //SendMessage("");
+            readLineTask.Wait();
+            readLineTask.Dispose();
         }
 
         private void OnStartGame(string read)
@@ -118,10 +130,20 @@ namespace Client.Client_Side
         private void CreateNameMenu(string read)
         {
             //ChosenName = read;
+            this.read = null;
             Colorful.Console.Write("Name-> ", Color.Aqua);
-            ChosenName = Console.ReadLine();
-            mainMenu.ExtraText += ChosenName;
+            while (true)
+            {
+                if (this.read != null)
+                {
+                    ChosenName = this.read;
+                    this.read = null;
+                    break;
+                }
+            }
+            mainMenu.ExtraText = "Name: " + ChosenName;
             Console.Clear();
+            mainMenu.Show();
         }
 
         private void EndGameEvent(string read)
@@ -167,6 +189,7 @@ namespace Client.Client_Side
                 {
                     Console.WriteLine("Game Changed To" + GameModes.ConnectionOpen);
                     clientGameState = GameModes.ConnectionOpen;
+                    showMainMenu = true;
                     mainMenu?.Show();
                     break;
                 }
@@ -185,6 +208,9 @@ namespace Client.Client_Side
                     Console.WriteLine("Game Changed To" + GameModes.GameStarted);
                     clientGameState = GameModes.GameStarted;
                     Console.Clear();
+
+                    abMenu.Show();
+
                     inPlay = true;
                     for (int j = 0; j < data.Length; j++) { }
                     break;
@@ -193,10 +219,18 @@ namespace Client.Client_Side
                 //The Server is Trying to End The Round
                 if (data[i].Contains(CodeMessages.GAME_ROUND_ENDED.Message))
                 {
-                    Console.WriteLine("Game Changed To" + GameModes.GameEnded);
+                    Console.WriteLine("Game Changed To" + GameModes.RoundEnded);
                     clientGameState = GameModes.RoundEnded;
-                    waitingResults = false;
+
+                    Console.Clear();
+
+                    endGameMenu.Show();
                     break;
+                }
+
+                if (data[i].Contains(CodeMessages.GAME_ENDED.Message))
+                {
+                    Console.WriteLine("");
                 }
             }
         }
@@ -211,15 +245,18 @@ namespace Client.Client_Side
 
         private string read;
 
-        public void StartReading()
+        private void StartReading()
         {
-            Task.Factory.StartNew(() =>
+            while (true)
             {
-                while (true)
-                {
-                    read = Console.ReadLine();
+                read = Console.ReadLine();
+                if (read?.ToLower() == "quit" || read?.ToLower() == "disconnect")  {
+                    Colorful.Console.WriteLine("Disconnected", Color.Red);
+                    controller.Disconnect();
+                    return;
+                    //controller.Disconnect();
                 }
-            });
+            }
         }
 
 
@@ -241,6 +278,7 @@ namespace Client.Client_Side
                                 mainMenuOption = mainMenu.ReadLine(read);
                                 if (mainMenuOption != null)
                                 {
+                                    read = null;
                                     break;
                                 }
                                 Colorful.Console.WriteLine("Option not available");
@@ -263,6 +301,7 @@ namespace Client.Client_Side
                                 abMenuString = abMenu.ReadLine(read);
                                 if (abMenuString != null)
                                 {
+                                    read = null;
                                     break;
                                 }
                                 Colorful.Console.WriteLine("Option not available");
@@ -272,22 +311,20 @@ namespace Client.Client_Side
                     }
                     break;
                 case GameModes.RoundEnded:
-                    if (!waitingResults)
+                    while (true)
                     {
-                        while (true)
+                        if (read != null)
                         {
-                            if (read != null)
+                            readEndMenu = endGameMenu.ReadLine(read);
+                            if (readEndMenu != null)
                             {
-                                readEndMenu = endGameMenu.ReadLine(read);
-                                if (readEndMenu != null)
-                                {
-                                    break;
-                                }
-                                Colorful.Console.WriteLine("Option not available");
+                                read = null;
+                                break;
                             }
+                            Colorful.Console.WriteLine("Option not available");
                         }
-                        endGameMenu.StartEvent(readEndMenu);
                     }
+                    endGameMenu.StartEvent(readEndMenu);
                     break;
                 case GameModes.GameEnded:
                     break;

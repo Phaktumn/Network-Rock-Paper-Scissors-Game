@@ -118,6 +118,7 @@ namespace Server
             switch (_serverState)
             {
                 case GameModes.ConnectionOpen:
+                    player.PlayerName = receivedMessage;
                     break;
                 case GameModes.ConnectionClosed:
                     break;

@@ -49,10 +49,11 @@ namespace Common.Network
         {
             shutDown = false;
             ClientDisconnectedEvent?.Invoke(this.Client);
+            client.Close();
 
             if (receiveTask != null)
             {
-                receiveTask.Wait();
+                //receiveTask.Wait();
                 receiveTask.Dispose();
             }
         }

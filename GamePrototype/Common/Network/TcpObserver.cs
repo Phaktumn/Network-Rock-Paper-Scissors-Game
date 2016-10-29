@@ -77,15 +77,32 @@ namespace Common.Network
         {
             NetworkStream stream = client.GetStream();
 
-            while (client.Connected)
+            while (!ShutDown)
             {
+                if (client.Client.Poll(0, SelectMode.SelectRead))
+                {
+                    Player player = null;
+                        // = GameStore.Instance.Game.GetPlayerFromIpEndPoint((IPEndPoint) client.Client.RemoteEndPoint);
+                    //Console.WriteLine("A player : " + pl.PlayerAddress + " has disconnected");
+                    //pl.Value.Wait();
+                    foreach (var pl in GameStore.Instance.Game.PlayerList)
+                    {
+                        if (pl.Key.Client == client)
+                        {
+                            player = pl.Key;
+                            Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
+                            pl.Value.Dispose();
+                        }
+                    }
+                    if (player != null) GameStore.Instance.Game.PlayerList.Remove(player);
+                }
                 int count;
                 byte[] data = new byte[client.ReceiveBufferSize];
                 try
                 {
                     count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);
                 }
-                //A player Just Disconnected
+                //A player Just Disconnected Sudden Disconnection
                 catch (IOException)
                 {
                     Player p = null;
@@ -95,11 +112,11 @@ namespace Common.Network
                         {
                             p = pl.Key;
                             Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
-                            pl.Value.Wait();
+                            //pl.Value.Wait();
                             pl.Value.Dispose();
                         }
                     }
-                    GameStore.Instance.Game.PlayerList.Remove(p);
+                    if (p != null) GameStore.Instance.Game.PlayerList.Remove(p);
                     return;
                 }
 
