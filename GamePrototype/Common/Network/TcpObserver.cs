@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -22,12 +23,18 @@ namespace Common.Network
 
         public bool ShutDown;
 
+        /// <summary>
+        /// time in ms
+        /// 1000 = 1 second
+        /// </summary>
+        public int TimeOutTime = 1000;
+
         public void Connect(IPAddress address, int port)
         {
             listener = new TcpListener(address, port);
             listener.Start();
 
-            awaitConnections = Task.Factory.StartNew(AwaitClients);
+            StartAwaitClients();
         }
 
         public void Disconnect()
@@ -73,57 +80,102 @@ namespace Common.Network
             awaitConnections.Dispose();
         }
 
+        public void StartAwaitClients()
+        {
+            if (awaitConnections == null || awaitConnections.IsCompleted || awaitConnections.IsCanceled) {
+                awaitConnections = Task.Factory.StartNew(AwaitClients);
+            }
+            else {
+                Console.WriteLine("Cannot start a running task");
+            }
+        }
+
         private async void ProcessClientStream(TcpClient client)
         {
             NetworkStream stream = client.GetStream();
 
             while (!ShutDown)
             {
-                if (client.Client.Poll(0, SelectMode.SelectRead))
+                if (client.Client != null && client.Connected)
                 {
-                    Player player = null;
-                        // = GameStore.Instance.Game.GetPlayerFromIpEndPoint((IPEndPoint) client.Client.RemoteEndPoint);
-                    //Console.WriteLine("A player : " + pl.PlayerAddress + " has disconnected");
-                    //pl.Value.Wait();
-                    foreach (var pl in GameStore.Instance.Game.PlayerList)
-                    {
-                        if (pl.Key.Client == client)
-                        {
-                            player = pl.Key;
-                            Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
-                            pl.Value.Dispose();
-                        }
-                    }
-                    if (player != null) GameStore.Instance.Game.PlayerList.Remove(player);
-                }
-                int count;
-                byte[] data = new byte[client.ReceiveBufferSize];
-                try
-                {
-                    count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);
-                }
-                //A player Just Disconnected Sudden Disconnection
-                catch (IOException)
-                {
-                    Player p = null;
-                    foreach (var pl in GameStore.Instance.Game.PlayerList)
-                    {
-                        if (pl.Key.Client == client)
-                        {
-                            p = pl.Key;
-                            Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
-                            //pl.Value.Wait();
-                            pl.Value.Dispose();
-                        }
-                    }
-                    if (p != null) GameStore.Instance.Game.PlayerList.Remove(p);
-                    return;
-                }
+                    //if (client.Client.Poll(TimeOutTime, SelectMode.SelectRead))
+                    //{
+                    //    Player player = null;
+                    //    byte[] buff = new byte[1];
+                    //    if (client.Client.Receive(buff, SocketFlags.Peek) == 0)
+                    //    {
+                    //        Client Disconnected
+                    //        foreach (var pl in GameStore.Instance.Game.PlayerList)
+                    //        {
+                    //            if (pl.Key.Client == client)
+                    //            {
+                    //                player = pl.Key;
+                    //                Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
+                    //                pl.Value.Dispose();
+                    //            }
+                    //        }
+                    //        if (player != null) GameStore.Instance.Game.PlayerList.Remove(player);
+                    //        return;
+                    //    }
+                    //    else
+                    //    {
 
-                string message = Encoding.ASCII.GetString(data, 0, count);
-                IPEndPoint address = (IPEndPoint) client.Client.RemoteEndPoint;
-                MessageReceivedEvent?.Invoke(new Message(message, address));
+                    //    }
+                    //     = GameStore.Instance.Game.GetPlayerFromIpEndPoint((IPEndPoint)client.Client.RemoteEndPoint);
+                    //    Console.WriteLine("A player : " + pl.PlayerAddress + " has disconnected");
+                    //    pl.Value.Wait();
+                    //}
+                    var data = new byte[client.ReceiveBufferSize];
+                    int count;
+                    try
+                    {
+                        count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);
+                    }
+                    //A player Just Disconnected Sudden Disconnection
+                    //The listener tried to read from a stream that was suddenly broked
+                    catch (IOException)
+                    {
+                        DisconnectClient(client);
+                        //Wait for a new client to connect
+                        StartAwaitClients();
+                        return;
+                    }
+                    //Client is Still Connected
+                    string message = Encoding.ASCII.GetString(data, 0, count);
+                    //Message Received just after client closes his stream
+                    if (message == CodeMessages.PLAYER_DISCONNECTED)
+                    {
+                        //GameStore.Instance.Game.GetPlayer()
+                        DisconnectClient(client);
+                        //Wait for a new client to connect
+                        StartAwaitClients();
+                        return;
+                    }
+                    IPEndPoint address = (IPEndPoint)client.Client.RemoteEndPoint;
+                    MessageReceivedEvent?.Invoke(new Message(message, address));
+                }
             }
+        }
+
+        public Player GetPlayer(TcpClient client)
+        {
+            return GameStore.Instance.Game.GetPlayerByTcpClient(client);
+        }
+
+        public void DisconnectClient(TcpClient client)
+        {
+            Player p = null;
+            foreach (var pl in GameStore.Instance.Game.PlayerList)
+            {
+                if (pl.Key.Client == client)
+                {
+                    p = pl.Key;
+                    Console.WriteLine("A player : " + pl.Key.PlayerAddress + " has disconnected");
+                    pl.Value.Wait();
+                    pl.Value.Dispose();
+                }
+            }
+            if (p != null) GameStore.Instance.Game.PlayerList.Remove(p);
         }
 
         public void Send(Player player, string message)
@@ -149,22 +201,6 @@ namespace Common.Network
             {
                 Send(player.Key, message);
             }
-        }
-
-        public void Read()
-        {
-
-        }
-
-        protected virtual void OnMessageReceivedEvent(Message packet)
-        {
-            MessageReceivedEvent?.Invoke(packet);
-        }
-
-        protected virtual void OnClientConnectedEvent(IPEndPoint address)
-        {
-            ClientConnectedEvent?.Invoke(address);
-
         }
     }
 }

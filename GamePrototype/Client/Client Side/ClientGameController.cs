@@ -97,7 +97,6 @@ namespace Client.Client_Side
 
         private void ControllerOnClientDisconnectedEvent(TcpClient client)
         {
-            //SendMessage("");
             readLineTask.Wait();
             readLineTask.Dispose();
         }
@@ -115,15 +114,21 @@ namespace Client.Client_Side
             //
             //send your name to server
             showMainMenu = false;
-            while (true)
+
+            //This client already connected
+            //dont try to connect again
+            if (!controller.Client.Connected)
             {
-                if (controller.Connect(NetworkOptions.Ip, NetworkOptions.Port))
+                while (true)
                 {
-                    Colorful.Console.WriteLine("Connected");
-                    SendMessage(ChosenName);
-                    break;
+                    if (controller.Connect(NetworkOptions.Ip, NetworkOptions.Port))
+                    {
+                        Colorful.Console.WriteLine("Connected");
+                        SendMessage(ChosenName);
+                        break;
+                    }
+                    Console.WriteLine("Cant Connect");
                 }
-                Console.WriteLine("Cant Connect");
             }
         }
 
@@ -189,6 +194,11 @@ namespace Client.Client_Side
                 {
                     Console.WriteLine("Game Changed To" + GameModes.ConnectionOpen);
                     clientGameState = GameModes.ConnectionOpen;
+
+                    read = null;
+
+                    Console.Clear();
+
                     showMainMenu = true;
                     mainMenu?.Show();
                     break;
@@ -230,14 +240,14 @@ namespace Client.Client_Side
 
                 if (data[i].Contains(CodeMessages.GAME_ENDED.Message))
                 {
-                    Console.WriteLine("");
+                    //Console.WriteLine("");
                 }
             }
         }
 
         public void Start()
         {
-            while (!controller.shutDown)
+            while (!controller.ShutDown)
             {
                 UpdateClient();
             }
@@ -282,6 +292,7 @@ namespace Client.Client_Side
                                     break;
                                 }
                                 Colorful.Console.WriteLine("Option not available");
+                                read = null;
                             }
                             mainMenu.StartEvent(mainMenuOption);
                         }
@@ -305,6 +316,7 @@ namespace Client.Client_Side
                                     break;
                                 }
                                 Colorful.Console.WriteLine("Option not available");
+                                read = null;
                             }
                         }
                         abMenu.StartEvent(abMenuString);
@@ -322,6 +334,7 @@ namespace Client.Client_Side
                                 break;
                             }
                             Colorful.Console.WriteLine("Option not available");
+                            read = null;
                         }
                     }
                     endGameMenu.StartEvent(readEndMenu);

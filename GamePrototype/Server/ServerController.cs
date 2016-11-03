@@ -61,9 +61,9 @@ namespace Server
 
                         break;
                     case GameModes.ConnectionOpen:
+                        Write("Not Enougth Players", Color.Red);
                         if (GameStore.Instance.Game.PlayerList.Count >= 2)
                         {
-                            Thread.Sleep(1000);
                             Write("Session in Full", Color.LawnGreen);
                             Write("Starting Session", Color.LawnGreen);
                             tcpListener.StopAwaitClients();
@@ -80,8 +80,8 @@ namespace Server
                         if (GameStore.Instance.Game.PlayerList.Count < 2)
                         {
                             GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
-                            tcpListener.SendAll(CodeMessages.PUBLIC_SERVER_MESSAGE.Message + "A Player Just Disconnected going back to menu");
-                            tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
+                            tcpListener.SendAll(CodeMessages.GAME_MAIN_MENU.Message);
+                            //tcpListener.SendAll(CodeMessages.PUBLIC_SERVER_MESSAGE.Message + " A Player Just Disconnected going back to menu");
                         }
                         break;
                     case GameModes.GameEnded:
@@ -91,13 +91,14 @@ namespace Server
                         if (GameStore.Instance.Game.PlayerList.Count < 2)
                         {
                             GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
-                            tcpListener.SendAll(CodeMessages.PUBLIC_SERVER_MESSAGE.Message + "A Player Just Disconnected going back to menu");
-                            tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
+                            tcpListener.SendAll(CodeMessages.GAME_MAIN_MENU.Message);
+                            //tcpListener.SendAll(CodeMessages.PUBLIC_SERVER_MESSAGE.Message + "A Player Just Disconnected going back to menu");
                         }
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
+                Thread.Sleep(1000);
             }
         }
         private void TcpListenerOnClientConnectedEvent(IPEndPoint address)
@@ -118,6 +119,12 @@ namespace Server
             switch (_serverState)
             {
                 case GameModes.ConnectionOpen:
+                    //Is the client already connected?
+                    //The client already has a name dont change
+                    if (player.PlayerName != null) {
+                        break;
+                    }
+                    Write("Players : " + GameStore.Instance.Game.PlayerList.Count, Color.Blue);
                     player.PlayerName = receivedMessage;
                     break;
                 case GameModes.ConnectionClosed:
@@ -134,7 +141,7 @@ namespace Server
 
                     tcpListener.Send(player, 
                         $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You are now waiting for other Players to play {CodeMessages.PLAYER_WAITING}");
-
+                      
                     if (GameStore.Instance.Game.AttackOrder.Count == GameStore.Instance.Game.PlayerList.Count)
                     {
                         Write("Round Ended", Color.Red);

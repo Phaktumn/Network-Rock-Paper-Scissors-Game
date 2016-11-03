@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Colorful;
 using Common;
 
@@ -16,6 +12,7 @@ namespace Core.Core
         /// </summary>
         private List<string> optionsList;
         private List<Formatter> optionsFormatter;
+
         private string optionsString;
         private List<string> indexStrings = new List<string>();
 

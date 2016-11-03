@@ -21,41 +21,48 @@ namespace Common.Network
         private TcpClient client;
         private NetworkStream stream;
         private Task receiveTask;
-        public bool shutDown = false;
+        public bool ShutDown = false;
 
         private bool state = true;
 
         GameModes clientGameState = GameModes.ConnectionClosed;
 
         public ClientController()
-        { }
+        {
+            client = new TcpClient();
+        }
 
         public bool Connect(string address, int port)
         {
             try
             {
-                client = new TcpClient(address, port);
-                BeginReceive();
+                client.Connect(address, port);
                 stream = client.GetStream();
+                BeginReceive();
                 return state = true;
             }
             catch (SocketException)
-            {
+            { 
                 return state = false;
             }
         }
 
         public void Disconnect()
         {
-            shutDown = false;
+            Send(CodeMessages.PLAYER_DISCONNECTED);
+            ShutDown = false;
             ClientDisconnectedEvent?.Invoke(this.Client);
-            client.Close();
 
-            if (receiveTask != null)
-            {
-                //receiveTask.Wait();
+            if (receiveTask != null) {
+                receiveTask.Wait();
                 receiveTask.Dispose();
             }
+            //Wait 1 sec to close the stream
+            //So data will not be lost
+            stream.Flush();
+            stream.Close(timeout: 1000);
+            client.Client.Close();
+            client.Close();
         }
 
         public void Send(string message)
@@ -64,11 +71,11 @@ namespace Common.Network
             stream.Write(bytes, 0, bytes.Length);
         }
 
-        public void BeginReceive()
+        private void BeginReceive()
         {
             receiveTask = Task.Factory.StartNew(async () =>
             {
-                while (!shutDown &&  Client.Connected)
+                while (!ShutDown && Client.Connected)
                 {
                     byte[] data = new byte[client.ReceiveBufferSize];
                     int count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);

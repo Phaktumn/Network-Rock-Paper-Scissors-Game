@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Net;
-using System.Security.Policy;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Drawing;
 
 namespace Common.Network
 {
@@ -40,8 +33,8 @@ namespace Common.Network
         public static string PLAYER_WAITING = "waiting";
         public static string PLAYER_DISCONNECTED = "disconnect";
 
-        public static NetworkCode PUBLIC_SERVER_MESSAGE = new NetworkCode($"{SERVER_MESSAGE_CODE}{MESSAGE_SPLITER_CODE}", Color.Aqua, true);
-        public static NetworkCode INTERNAL_SERVER_MESSAGE = new NetworkCode($"{SERVER_MESSAGE_CODE}", Color.BlueViolet, false);
+        public static NetworkCode PUBLIC_SERVER_MESSAGE = new NetworkCode($"{SERVER_MESSAGE_CODE}{MESSAGE_SPLITER_CODE}", Color.Aqua, false);
+        public static NetworkCode INTERNAL_SERVER_MESSAGE = new NetworkCode($"{SERVER_MESSAGE_CODE}", Color.BlueViolet, true );
 
         public static NetworkCode GAME_INITIALIZING = new NetworkCode($"{GAME_INITIALIZING_CODE}{MESSAGE_SPLITER_CODE}", Color.Aqua, false);
         public static NetworkCode GAME_STARTING = new NetworkCode($"{GAME_STARTING_CODE}{MESSAGE_SPLITER_CODE}", Color.Aqua, false);
