@@ -67,7 +67,7 @@ namespace Common.Network
 
         public void Send(string message)
         {
-            byte[] bytes = Encoding.ASCII.GetBytes(message);
+            var bytes = Encoding.ASCII.GetBytes(message.ToCharArray());
             stream.Write(bytes, 0, bytes.Length);
         }
 
@@ -77,11 +77,11 @@ namespace Common.Network
             {
                 while (!ShutDown && Client.Connected)
                 {
-                    byte[] data = new byte[client.ReceiveBufferSize];
-                    int count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);
-                    string message = Encoding.ASCII.GetString(data, 0, count);
+                    var data = new byte[client.ReceiveBufferSize];
+                    var count = await stream.ReadAsync(data, 0, client.ReceiveBufferSize);
+                    var message = Encoding.ASCII.GetString(data, 0, count);
 
-                    IPEndPoint address = (IPEndPoint) client.Client.RemoteEndPoint;
+                    var address = (IPEndPoint) client.Client.RemoteEndPoint;
                     MessageReceivedEvent?.Invoke(new Message(message, address), message.Split('|'));
                 }
             });

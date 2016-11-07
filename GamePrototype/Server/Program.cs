@@ -10,7 +10,7 @@ namespace Server
     {
         static void Main(string[] args)
         {
-            ServerController serverController = new ServerController();
+            var serverController = new ServerController();
             serverController.StartServer();
         }
     }

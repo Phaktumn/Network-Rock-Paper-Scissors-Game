@@ -44,7 +44,7 @@ namespace Common.Network
             awaitConnections.Wait();
             awaitConnections.Dispose();
 
-            foreach (KeyValuePair<Player, Task> player in GameStore.Instance.Game.PlayerList)
+            foreach (var player in GameStore.Instance.Game.PlayerList)
             {
                 player.Value.Wait();
                 player.Value.Dispose();
@@ -58,7 +58,9 @@ namespace Common.Network
         {
             while (!ShutDown)
             {
+
                 var client = await listener.AcceptTcpClientAsync();
+                //if (!client.Client.Poll(100, SelectMode.SelectRead)) continue;
                 var task = Task.Factory.StartNew(() => ProcessClientStream(client));
                 var player = new Player
                 {
@@ -67,7 +69,7 @@ namespace Common.Network
                     PlayerAddress = (IPEndPoint) client.Client.RemoteEndPoint,
                     //Player Name Is Changed just after a client connected
                     PlayerName = null,
-                    Port = 7777
+                    Port = NetworkOptions.Port
                 };
                 GameStore.Instance.Game.PlayerList.Add(player, task);
                 ClientConnectedEvent?.Invoke((IPEndPoint) client.Client.RemoteEndPoint);
@@ -92,7 +94,7 @@ namespace Common.Network
 
         private async void ProcessClientStream(TcpClient client)
         {
-            NetworkStream stream = client.GetStream();
+            var stream = client.GetStream();
 
             while (!ShutDown)
             {
@@ -141,7 +143,7 @@ namespace Common.Network
                         return;
                     }
                     //Client is Still Connected
-                    string message = Encoding.ASCII.GetString(data, 0, count);
+                    var message = Encoding.ASCII.GetString(data, 0, count);
                     //Message Received just after client closes his stream
                     if (message == CodeMessages.PLAYER_DISCONNECTED)
                     {
@@ -151,7 +153,7 @@ namespace Common.Network
                         StartAwaitClients();
                         return;
                     }
-                    IPEndPoint address = (IPEndPoint)client.Client.RemoteEndPoint;
+                    var address = (IPEndPoint)client.Client.RemoteEndPoint;
                     MessageReceivedEvent?.Invoke(new Message(message, address));
                 }
             }
@@ -189,7 +191,7 @@ namespace Common.Network
 
         public void Send(NetworkStream stream, string message)
         {
-            byte[] buffer = new byte[message.Length * sizeof(char)];
+            var buffer = new byte[message.Length * sizeof(char)];
             buffer = Encoding.ASCII.GetBytes(message);
 
             stream.Write(buffer, 0, buffer.Length);

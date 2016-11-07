@@ -2,16 +2,11 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Common;
 using Common.Network;
-using Microsoft.Win32;
 using Server.Controlls;
 
 namespace Server
@@ -62,7 +57,7 @@ namespace Server
                         break;
                     case GameModes.ConnectionOpen:
                         Write("Not Enougth Players", Color.Red);
-                        if (GameStore.Instance.Game.PlayerList.Count >= 2)
+                        if (GameStore.Instance.Game.PlayerList.Count >= NetworkOptions.MaxPlayers)
                         {
                             Write("Session in Full", Color.LawnGreen);
                             Write("Starting Session", Color.LawnGreen);
@@ -77,7 +72,7 @@ namespace Server
                         tcpListener.SendAll(CodeMessages.GAME_STARTING.Message);
                         break;
                     case GameModes.GameStarted:
-                        if (GameStore.Instance.Game.PlayerList.Count < 2)
+                        if (GameStore.Instance.Game.PlayerList.Count < NetworkOptions.MaxPlayers)
                         {
                             GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
                             tcpListener.SendAll(CodeMessages.GAME_MAIN_MENU.Message);
@@ -88,7 +83,7 @@ namespace Server
 
                         break;
                     case GameModes.RoundEnded:
-                        if (GameStore.Instance.Game.PlayerList.Count < 2)
+                        if (GameStore.Instance.Game.PlayerList.Count < NetworkOptions.MaxPlayers)
                         {
                             GameStore.Instance.Game.OnGameStateChangeEvent(GameModes.ConnectionOpen);
                             tcpListener.SendAll(CodeMessages.GAME_MAIN_MENU.Message);
@@ -112,13 +107,16 @@ namespace Server
         /// <param name="packet"></param>
         private void TcpListener_MessageReceivedEvent(Message packet)
         {
-            string[] rawMessage = Message.Deserialize(packet);
-            string receivedMessage = rawMessage[0];
-            Player player = GameStore.Instance.Game.GetPlayerFromIpEndPoint(packet.Sender);
+            var rawMessage = Message.Deserialize(packet);
+            var receivedMessage = rawMessage[0];
+            var player = GameStore.Instance.Game.GetPlayerFromIpEndPoint(packet.Sender);
             Write("Received from " + player.PlayerAddress + " -> " + packet.Data, Color.OrangeRed);
             switch (_serverState)
             {
                 case GameModes.ConnectionOpen:
+                    GameStore.Instance.Game.AttackOrder.Clear();
+                    GameController.Instance.ClearStack();
+
                     //Is the client already connected?
                     //The client already has a name dont change
                     if (player.PlayerName != null) {
@@ -133,15 +131,15 @@ namespace Server
                     break;
                 case GameModes.GameStarted:
                     //Message Received as a ability
-                    int used = int.Parse(receivedMessage);
+                    var used = int.Parse(receivedMessage);
 
                     Write("||" + player.PlayerName + "|| Used: " + (Abilities) used, Color.Red);
                     GameStore.Instance.Game.AttackOrder.Add(player);
-                    GameController.Instance.addAttack((Abilities) used);
+                    GameController.Instance.AddAttack((Abilities) used);
 
                     tcpListener.Send(player, 
                         $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You are now waiting for other Players to play {CodeMessages.PLAYER_WAITING}");
-                      
+
                     if (GameStore.Instance.Game.AttackOrder.Count == GameStore.Instance.Game.PlayerList.Count)
                     {
                         Write("Round Ended", Color.Red);
@@ -158,24 +156,22 @@ namespace Server
                             {
                                 Write(p1.PlayerName + " Lost", Color.Red);
                                 Write(p2.PlayerName + " Won", Color.Green);
-                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
-                                tcpListener.Send(p2,
-                                    $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Won}");
+                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message}{CodeMessages.MESSAGE_SPLITER_CODE} State {CodeMessages.MESSAGE_SPLITER_CODE} {state} {CodeMessages.MESSAGE_SPLITER_CODE}");
+                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message}{CodeMessages.MESSAGE_SPLITER_CODE} State {CodeMessages.MESSAGE_SPLITER_CODE} {BattleState.Won} {CodeMessages.MESSAGE_SPLITER_CODE}");
                             }
                             if (state == BattleState.Won)
                             {
                                 Write(p1.PlayerName + " Won", Color.Green);
                                 Write(p2.PlayerName + " Lost", Color.Red);
-                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
-                                tcpListener.Send(p2,
-                                    $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {BattleState.Lost}");
+                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message}{CodeMessages.MESSAGE_SPLITER_CODE} State {CodeMessages.MESSAGE_SPLITER_CODE} {state} {CodeMessages.MESSAGE_SPLITER_CODE}");
+                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message}{CodeMessages.MESSAGE_SPLITER_CODE} State {CodeMessages.MESSAGE_SPLITER_CODE} {BattleState.Lost} {CodeMessages.MESSAGE_SPLITER_CODE}");
                             }
-                            if (state == BattleState.Draw)
-                            {
-                                Write(p1.PlayerName + " Draw", Color.Red);
-                                Write(p2.PlayerName + " Draw", Color.Green);
-                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
-                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message} You have : {state}");
+                            if (state == BattleState.Draw)                                                
+                            {                                                                             
+                                Write(p1.PlayerName + " Draw", Color.Red);                                
+                                Write(p2.PlayerName + " Draw", Color.Green);                              
+                                tcpListener.Send(p1, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message}{CodeMessages.MESSAGE_SPLITER_CODE} State {CodeMessages.MESSAGE_SPLITER_CODE} {state} {CodeMessages.MESSAGE_SPLITER_CODE}");
+                                tcpListener.Send(p2, $"{CodeMessages.PUBLIC_SERVER_MESSAGE.Message}{CodeMessages.MESSAGE_SPLITER_CODE} State {CodeMessages.MESSAGE_SPLITER_CODE} {state} {CodeMessages.MESSAGE_SPLITER_CODE}");
                             }
                         }
                         _serverState = GameModes.RoundEnded;
@@ -213,7 +209,7 @@ namespace Server
         private static void Write(string text, Color col)
         {
             Colorful.Console.WriteFormatted(DateTime.Now.ToString(CultureInfo.CurrentCulture) + " -> ", Color.DimGray);
-            Console.Write(text + "\n", col);
+            Colorful.Console.Write(text + "\n", col);
         }
     }
 }

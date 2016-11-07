@@ -16,7 +16,7 @@ namespace Common
         public List<Player> AttackOrder { get; set; } = new List<Player>(); 
         public int TargetNumber { get; set; }
         public List<Move> MoveList { get; set; }
-        
+
         public void OnGameStateChangeEvent(GameModes mode)
         {
             GameStateChangeEvent?.Invoke(mode);
@@ -41,7 +41,7 @@ namespace Common
             {
                 if (enumerator.Current.Key.PlayerName == name)
                 {
-                    Player p1 = enumerator.Current.Key;
+                    var p1 = enumerator.Current.Key;
                     enumerator.Dispose();
                     return p1;
                 }
@@ -55,7 +55,7 @@ namespace Common
             {
                 if (enumerator.Current.Key.Client.Equals(client))
                 {
-                    Player p1 = enumerator.Current.Key;
+                    var p1 = enumerator.Current.Key;
                     enumerator.Dispose();
                     return p1;
                 }

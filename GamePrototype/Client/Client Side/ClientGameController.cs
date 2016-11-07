@@ -31,6 +31,7 @@ namespace Client.Client_Side
         private bool showMainMenu = true;
         private bool choosingName = true;
 
+        private string RoundResult;
 
         private string ChosenName = null;
 
@@ -177,14 +178,19 @@ namespace Client.Client_Side
 
         private void ComputeMessage(string[] data)
         {
-            for (int i = 0; i < data.Length; i++)
+            for (var i = 0; i < data.Length; i++)
             {
                 //We can show this Message to the user
                 if (data[i].Contains(CodeMessages.PUBLIC_SERVER_MESSAGE.Message))
                 {
                     Colorful.Console.WriteLine(data[0], Color.Red);
-                    for (int r = 1; r < data.Length; r++)
+                    for (var r = 1; r < data.Length; r++)
                     {
+                        if (data[r].Contains("State"))
+                        {
+                            RoundResult = data[data.Length - 2];
+                            continue;
+                        }
                         Colorful.Console.WriteLine($"{data[r]} ", Color.Aqua);
                     }
                     break;
@@ -222,7 +228,7 @@ namespace Client.Client_Side
                     abMenu.Show();
 
                     inPlay = true;
-                    for (int j = 0; j < data.Length; j++) { }
+                    for (var j = 0; j < data.Length; j++) { }
                     break;
                 }
 
@@ -233,7 +239,7 @@ namespace Client.Client_Side
                     clientGameState = GameModes.RoundEnded;
 
                     Console.Clear();
-
+                    Colorful.Console.WriteLine($"You Have : {RoundResult}", Color.Aqua);
                     endGameMenu.Show();
                     break;
                 }
@@ -274,7 +280,7 @@ namespace Client.Client_Side
         string abMenuString;
         string readEndMenu;
 
-        public void UpdateClient()
+        private void UpdateClient()
         {
             switch (clientGameState)
             {
@@ -283,18 +289,18 @@ namespace Client.Client_Side
                     {
                         if (read != null)
                         {
-                            while (true)
-                            {
-                                mainMenuOption = mainMenu.ReadLine(read);
-                                if (mainMenuOption != null)
-                                {
-                                    read = null;
-                                    break;
-                                }
-                                Colorful.Console.WriteLine("Option not available");
-                                read = null;
-                            }
-                            mainMenu.StartEvent(mainMenuOption);
+                            //while (true)
+                            //{
+                                    mainMenuOption = mainMenu.ReadLine(read);
+                                    if (mainMenuOption != null)
+                                    {
+                                        mainMenu.StartEvent(mainMenuOption);
+                                        read = null;
+                                        break;
+                                    }
+                                    Colorful.Console.WriteLine("Option not available");
+                                    read = null; 
+                            //}
                         }
                     }
                     break;
@@ -305,39 +311,49 @@ namespace Client.Client_Side
                 case GameModes.GameStarted:
                     if (inPlay)
                     {
-                        while (true)
+                        if (read != null)
                         {
-                            if (read != null)
-                            {
+                            //while (true)
+                            //{
+                                //if (clientGameState == GameModes.GameStarted)
+                                //{
                                 abMenuString = abMenu.ReadLine(read);
                                 if (abMenuString != null)
                                 {
+                                    abMenu.StartEvent(abMenuString);
                                     read = null;
                                     break;
                                 }
                                 Colorful.Console.WriteLine("Option not available");
                                 read = null;
-                            }
+                            //}
+                            //else
+                            //{
+                            //    //Not in This Game Mode!!!
+                            //    //Refresh
+                            //    return;
+                            //}
+                            //}
                         }
-                        abMenu.StartEvent(abMenuString);
                     }
                     break;
                 case GameModes.RoundEnded:
-                    while (true)
+
+                    if (read != null)
                     {
-                        if (read != null)
-                        {
+                        //while (true)
+                        //{
                             readEndMenu = endGameMenu.ReadLine(read);
                             if (readEndMenu != null)
                             {
+                                endGameMenu.StartEvent(readEndMenu);
                                 read = null;
                                 break;
                             }
                             Colorful.Console.WriteLine("Option not available");
                             read = null;
-                        }
+                        //}
                     }
-                    endGameMenu.StartEvent(readEndMenu);
                     break;
                 case GameModes.GameEnded:
                     break;

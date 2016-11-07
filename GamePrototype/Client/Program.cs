@@ -6,7 +6,7 @@ namespace Client
     {
         private static void Main(string[] args)
         {
-            ClientGameController clientGameController = new ClientGameController();
+            var clientGameController = new ClientGameController();
             clientGameController.Start();
         }
     }
